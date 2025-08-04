@@ -320,5 +320,5 @@ Make sure your folder has all of the following files in it before uploading to d
 
 ![final_files](./assets/final_file_list.png)
 
-Upload the files [here](https://www.dropbox.com/scl/fo/xceovhaiqt933w6iwslza/AEIpRGGn4HwPuBjvIkmyMXk?rlkey=yhdmmkkrz9e6lpxk53nhxx8hf&st=al59vxsm&dl=0) by dragging the folder. Uploading may be faster with the dropbox app. 
+Upload the files [here](https://www.dropbox.com/request/N3Hoxa3VlisQvNHtfWZj) by dragging the folder. Uploading may be faster with the dropbox app. 
 
