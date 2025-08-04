@@ -134,6 +134,8 @@ Open `[foldername].mp4`. Make sure rgb camera data is visible, and that you can 
 
 ### After Recording
 
+Turn off your headset.
+
 Unplug the usb cables from the receiver microcontrollers (while keeping them plugged into your computer). Plug in the the transmitter microcontrollers to recharge the LiPo battery - the LED on the board will turn off if/when the battery is fully charge. At this point, unplug the batteries and plug the usb cables back into the receivers. 
 
 
