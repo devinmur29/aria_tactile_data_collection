@@ -19,23 +19,69 @@ There are two main software components required:
 1. **Egocentric Vision Backend**: Either [Project Aria](https://docs.google.com/document/d/1t-niAXtyPILsD9TdD60u0-aeOIRVg9gkqVwzWFDmDiM/edit?usp=sharing) or a custom [Oculus/Quest](https://www.meta.com/quest/quest-3s) backend, depending on which headset you’re using.
 2. **This Repository**: Provides Python tools for recording tactile data, synchronizing and cleaning headset and tactile recordings, and annotating them.
 
-To get started, follow the setup instructions for your specific headset and then clone this repository.
+#### Headset Setup
+
+Project Aria Glasses Setup: Follow the instructions [here](https://docs.google.com/document/d/1t-niAXtyPILsD9TdD60u0-aeOIRVg9gkqVwzWFDmDiM/edit?usp=sharing)
+
 
 #### Setup for This Repository
 
-1. Clone this repo:
+1. Clone this repo or download it as a zip file. Open it in your code editor of choice (i.e, VsCode):
 
    ```bash
    git clone https://github.com/devinmur29/aria_tactile_data_collection.git
    cd aria_tactile_data_collection
    ```
 2. Create and activate a Python virtual environment using either `venv` or Anaconda. This code has been tested with Python 3.11.
+
+##### ✅ Option 1: Using `venv` (recommended for simplicity)
+
+**Create the virtual environment**
+
+Open the VSCode terminal in your project root and run:
+
+```bash
+python -m venv .venv
+```
+This creates a folder named `.venv` in your project directory.
+
+**Activate the virtual environment**
+
+* **Windows (Command Prompt)**:
+
+  ```cmd
+  .venv\Scripts\activate
+  ```
+* **Windows (PowerShell)**:
+
+  ```powershell
+  .venv\Scripts\Activate.ps1
+  ```
+* **macOS/Linux**:
+
+  ```bash
+  source .venv/bin/activate
+  ``
+
+---
+
+##### 📦 Option 2: Using Anaconda (if you prefer Conda)
+**Create the environment**
+```bash
+conda create -n myenv python=3.11
+```
+
+**Activate the environment**
+
+```bash
+conda activate myenv
+```
+
 3. Install required dependencies:
 
    ```bash
    pip install -r requirements.txt
    ```
-
 ---
 
 ### Hardware
