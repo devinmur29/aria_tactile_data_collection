@@ -622,7 +622,7 @@ class MultiProtocolReceiver():
         # Display using OpenCV (faster than external viewer)
         window_name = "Time Sync QR"
         cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-        cv2.resizeWindow(window_name, 600, 600)
+        cv2.resizeWindow(window_name, 800, 800)
         cv2.imshow(window_name, qr_cv)
 
         # Wait for any key (or keep visible for N seconds)

@@ -107,7 +107,7 @@ You will need the following hardware:
    * You may need to **restart your computer** after installation for the drivers to take effect.
 2. **Plug in the receiver ESP32 microcontrollers**
    Connect each receiver ESP32 to an available USB port on your laptop. Once connected, they should appear as serial (COM) ports on your system.
-3. Power the **transmitter microcontrollers** by removing the lid on the circuit housing, connecting their batteries, and closing the lid. If the lid is unsecure, add masking tape/electrical tape around the top to keep it on. 
+3. Power the **transmitter microcontrollers** by removing the lid on the circuit housing, connecting their batteries, and closing the lid. It is easiest to close the lid if the battery is placed in the top left corner of the housing. If the lid is unsecure, use the masking tape provided to wrap the top lid onto the housing.
 
 ![battery](assets/battery.png)
 
@@ -144,7 +144,7 @@ python recordOnly.py --foldername [same name as video recording] [--small]
 * Use `--small` **only** if you are using the small glove configuration.
 * Omit `--small` if you are using the default large gloves.
 
-> ⚠️ **Crucial:** When you run the command, the headset camera **must already be pointed at your laptop screen** and you should already be looking at the screen.
+> ⚠️ **Crucial:** When you run the command, the headset camera **must already be pointed at your laptop screen, approximately one foot away from it** and you should already be looking at the screen.
 > This ensures the **QR code is captured in the first few frames**, which is essential for aligning tactile and video timestamps.
 
 Once the QR code appears and has been captured in the video feed, you may proceed with the recording session. As a sanity check, **firmly press each finger** to verify that all tactile sensing channels are active.
@@ -160,37 +160,61 @@ Once the QR code appears and has been captured in the video feed, you may procee
 
 #### After Recording
 
-Unplug the usb cables from the receiver microcontrollers (while keeping them plugged into your computer). Plug in the the transmitter microcontrollers to recharge the LiPo battery - the LED on the board will turn off if/when the battery is fully charge. At this point, unplug the batteries and plug the usb cables back into the receivers. 
+Unplug the usb cables from the receiver microcontrollers (while keeping them plugged into your computer). Plug in the the transmitter microcontrollers to recharge the LiPo battery - the LED on the board will turn off if/when the battery is fully charge. At this point, unplug the batteries and plug the usb cables back into the receivers. Use the alcohol wipes provided to wipe down the sensor (silicone pad) for the next user. 
+
 
 ### 4. Preview the Recording
 
-1. Connect the headset to your computer and copy over the recorded files:
+1. **Copy the recorded files to your computer**
+   Connect the headset and transfer the following files:
 
    * `[foldername].vrs`
    * `[foldername].vrs.json`
 
-   Place them in the matching folder under `ariarecordings/`, which should also contain:
+   Place them in the corresponding folder under `ariarecordings/`, which should also contain:
 
    * `leftPressure.hdf5`
    * `rightPressure.hdf5`
 
-![copy\_aria](assets/copy_aria.png)
+   ![copy\_aria](assets/copy_aria.png)
 
-2. Run the following script to clean and preview the data:
+2. **Clean and preview the data**
+   Run:
 
-```bash
-python cleanData.py --foldername [foldername] [--small]
-```
+   ```bash
+   python cleanData.py --foldername [foldername] [--small]
+   ```
 
-This will generate a synchronized video preview (`[foldername].mp4`) that overlays RGB video from the glasses and tactile data. 
+   This generates a synchronized preview video (`[foldername].mp4`) overlaying the RGB video from the glasses with tactile data.
+
+---
+
+#### **If the script shows `"No QR code with 'displayed' field found in VRS."`**
+
+This means the QR code could not be detected in the RGB recording—often due to poor image quality or the recorder being too far from the code at the start. You can manually recover the timestamp as follows:
+
+1. Open the recording in Aria’s rerun viewer:
+
+   ```bash
+   viewer_mps --vrs ariarecordings/[foldername]/[foldername].vrs
+   ```
+
+2. In the bottom-left corner, change the time display from **device\_time** to **timestamp**.
+   ![timestamp](./assets/rerunTs.png)
+
+3. Use the scrollbar and frame navigation buttons (<–/–>) to find the first frame where the QR code appears on the laptop screen. Copy the timestamp (omit the `#`).
+
+4. Re-run `cleanData.py` with the timestamp:
+
+   ```bash
+   python cleanData.py --foldername [foldername] [--small] --aria_ts_ns [timestamp]
+   ```
 
 ---
 
 ### Final Check
 
-Open `[foldername].mp4`. Make sure rgb camera data is visible, and that you can see each press in the plot/visual presses appear synchronized with the pressure heatmap. 
-
-> \[TODO] Specify what to do if videos do not appear synced
+Open `[foldername].mp4`. Make sure rgb camera data is visible, and that you can see each press in the plot/visual presses appear synchronized with the pressure heatmap. If the videos do not appear synced, follow the steps above under "If the script shows no QR code" to manually identify the start timestamp. If the video still appears unsyncrhonized, try to sync your laptop time (Usually under Date and Time settings on your machine)
 
 
 
@@ -304,7 +328,7 @@ Once you've completed the metadata, click the **"Complete Metadata - Start Detai
 
 #### Step 2: Add Detailed Annotations
 
-Watch the video again and mark specific moments where something new or meaningful happens.
+Watch the video again and mark the frames where you enumerated the series of hand poses before starting your activity as "calibration". Then mark specific moments where something new or meaningful happens.
 
 > 💡 Imagine you're describing the video over the phone to a friend who can't see it. What would you tell them is happening?
 
@@ -320,5 +344,5 @@ Make sure your folder has all of the following files in it before uploading to d
 
 ![final_files](./assets/final_file_list.png)
 
-Upload the files [here](https://www.dropbox.com/request/N3Hoxa3VlisQvNHtfWZj) by dragging the folder. Uploading may be faster with the dropbox app. 
+Upload the files [here](https://www.dropbox.com/request/N3Hoxa3VlisQvNHtfWZj) by dragging the folder you named. 
 

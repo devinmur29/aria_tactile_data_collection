@@ -6,7 +6,8 @@ import os
 parser = argparse.ArgumentParser(description="Run aria_mps on a specified folder.")
 parser.add_argument('--foldername', required=True, help='Name of the folder inside ariarecordings.')
 parser.add_argument('--small', action='store_true', help='Use the small glove config if set.')
-parser.add_argument('--requestmps', action='store_true', help='request mps if set.')
+parser.add_argument('--requestmps', action='store_true', help='Request mps if set.')
+parser.add_argument('--aria_ts_ns', type=int, help='Aria timestamp in ns to align tactile data to (skips QR search if provided).')
 args = parser.parse_args()
 
 # Construct the input path
@@ -28,7 +29,6 @@ try:
 except subprocess.CalledProcessError as e:
     print(f"❌ Error while running aria_mps: {e}")
 
-import os
 import cv2
 import numpy as np
 import h5py
@@ -36,7 +36,6 @@ import json
 from tqdm import tqdm
 from xml.etree import ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
-from functools import partial
 import ast
 import re
 
@@ -55,16 +54,15 @@ right_h5_path = os.path.join(base_path, "rightPressure.hdf5")
 aligned_left_path = os.path.join(base_path, "leftPressure_aligned.hdf5")
 aligned_right_path = os.path.join(base_path, "rightPressure_aligned.hdf5")
 
-
 mapping_json_path = "point_weight_mappings_small.json" if args.small else "point_weight_mappings_large.json"
 svg_file_path = "voronoi_regions_small.svg" if args.small else "voronoi_regions_large.svg"
-output_path = os.path.join(base_path,f"{foldername}.mp4")
+output_path = os.path.join(base_path, f"{foldername}.mp4")
 
 
 # Strip the np.float64(...) wrappers
 def sanitize_qr_string(data):
-    # Replace np.float64(123.456) → 123.456
     return re.sub(r"np\.float64\(([\d\.Ee+-]+)\)", r"\1", data)
+
 
 def find_qr_and_timestamp(vrs_path, camera_name="camera-rgb"):
     print(f"[🔍] Scanning VRS file: {vrs_path}")
@@ -83,7 +81,6 @@ def find_qr_and_timestamp(vrs_path, camera_name="camera-rgb"):
 
         if img_np is None or img_np.size == 0:
             continue
-
         if img_np.dtype != np.uint8:
             img_np = img_np.astype(np.uint8)
 
@@ -95,10 +92,9 @@ def find_qr_and_timestamp(vrs_path, camera_name="camera-rgb"):
 
         if not data:
             if idx == halfway_index and not qr_found:
-                raise RuntimeError("[⚠️] No QR detected in first half of frames! Make sure your aria recording settings are correct and the QR code is clearly in frame")
+                raise RuntimeError("[⚠️] No QR detected in first half of frames! Make sure QR is in frame")
             continue
 
-        # ✅ Move parsing into same conditional block
         print(f"QR code found at frame {idx}, timestamp {ts_ns}")
         try:
             clean_data = sanitize_qr_string(data)
@@ -112,12 +108,26 @@ def find_qr_and_timestamp(vrs_path, camera_name="camera-rgb"):
             continue
     raise RuntimeError("No QR code with 'displayed' field found in VRS.")
 
-aria_ts_ns, displayed_sec, provider, stream_id = find_qr_and_timestamp(vrs_path)
+
+# === Timestamp selection logic ===
+if args.aria_ts_ns:
+    aria_ts_ns = args.aria_ts_ns
+    print(f"[⏱] Using provided aria_ts_ns: {aria_ts_ns}")
+    if os.path.exists(left_h5_path):
+        with h5py.File(left_h5_path, 'r') as f:
+            displayed_sec = float(f['ts'][0])
+            print(f"[✓] Using first tactile timestamp as displayed_sec: {displayed_sec}")
+    else:
+        raise FileNotFoundError(f"Cannot find {left_h5_path} to get displayed_sec.")
+    provider = data_provider.create_vrs_data_provider(vrs_path)
+    stream_id = provider.get_stream_id_from_label("camera-rgb")
+else:
+    aria_ts_ns, displayed_sec, provider, stream_id = find_qr_and_timestamp(vrs_path)
+
 
 def align_glove(h5_path, displayed_sec, aria_ts_ns):
     print(f"\n[🧤] Processing glove file: {h5_path}")
 
-    # Load original data
     with h5py.File(h5_path, 'r') as f:
         fc = f['frame_count'][0]
         ts = np.array(f['ts'][:fc])
@@ -126,7 +136,6 @@ def align_glove(h5_path, displayed_sec, aria_ts_ns):
     print(f"First timestamp {ts[0]}")
     print(f"Last timestamp {ts[-1]}")
 
-    # Compute alignment
     diffs = np.abs(ts - displayed_sec)
     idx = np.argmin(diffs)
     ts0 = ts[idx]
@@ -134,17 +143,16 @@ def align_glove(h5_path, displayed_sec, aria_ts_ns):
 
     print(f"  [✓] Aligning from tactile ts={ts0:.6f}s → Aria ts={aria_ts_ns} ns")
 
-    # Create new file path
     base, ext = os.path.splitext(h5_path)
     new_h5_path = base + "_aligned" + ext
 
-    # Save aligned data to new file
     with h5py.File(new_h5_path, 'w') as f_new:
         f_new.create_dataset('ts', data=shifted_ts_ns, dtype='int64')
         f_new.create_dataset('pressure', data=pressure[idx:], dtype='float32')
         f_new.create_dataset('frame_count', data=np.array([len(shifted_ts_ns)], dtype='int32'))
 
     print(f"  [✔] Alignment complete, saved to {new_h5_path}")
+
 
 if os.path.exists(left_h5_path):
     if os.path.exists(aligned_left_path):
@@ -161,6 +169,7 @@ if os.path.exists(right_h5_path):
         align_glove(right_h5_path, displayed_sec, aria_ts_ns)
 else:
     print(f"[!] Skipping {right_h5_path} (file not found)")
+
 
 # === INIT ===
 provider = data_provider.create_vrs_data_provider(vrs_path)
@@ -235,19 +244,108 @@ right_weights = precompute_weights(mapping, is_left=False)
 def interpolate_fast(pressure16x16, precomputed_weights):
     return {label: np.sum(W * pressure16x16) for label, W in precomputed_weights.items()}
 
+
+
+
+def hsv_to_rgb(h, s, v):
+    """
+    Converts HSV (Hue, Saturation, Value) to RGB (Red, Green, Blue) color space.
+    Hue (h) is expected in degrees [0, 360).
+    Saturation (s) and Value (v) are expected in [0, 1].
+    Returns RGB tuple with values scaled to [0, 255].
+    """
+    h = h % 360
+    c = v * s
+    x = c * (1 - abs((h / 60) % 2 - 1))
+    m = v - c
+
+    rp, gp, bp = 0, 0, 0 # Initialize to avoid potential UnboundLocalError
+
+    if h < 60:
+        rp, gp, bp = c, x, 0
+    elif h < 120:
+        rp, gp, bp = x, c, 0
+    elif h < 180:
+        rp, gp, bp = 0, c, x
+    elif h < 240:
+        rp, gp, bp = 0, x, c
+    elif h < 300:
+        rp, gp, bp = x, 0, c
+    else: # h >= 300 and h < 360
+        rp, gp, bp = c, 0, x
+
+    # Scale the RGB components from [0, 1] to [0, 255]
+    # And convert to integers
+    r = int((rp + m) * 255)
+    g = int((gp + m) * 255)
+    b = int((bp + m) * 255)
+
+    # Return as (B, G, R) if you are feeding this into a system that expects BGR (like OpenCV)
+    # Otherwise, return (R, G, B) if standard RGB is expected.
+    # Given your previous code returned (int(b), int(g), int(r)), we'll assume BGR.
+    return (b, g, r)
+
 def value_to_color(val, vmin=0, vmax=3000):
+    """
+    Maps a pressure value to a color using an HSV gradient.
+    High pressure (low values) will be Red (hue 0).
+    Low pressure (high values) will be Blue (hue 240).
+    """
+    # Clamp the value to the specified min/max range
     clamped = np.clip(val, vmin, vmax)
+
+    # Normalize the clamped value to a 0-1 range
     norm = (clamped - vmin) / (vmax - vmin)
-    hue = (1 - norm) * 240  # 240 to 0 (blue to red)
-    # Convert HSV to BGR for OpenCV:
-    # OpenCV expects hue in [0,179], saturation and value in [0,255]
-    h = int(hue / 2)  # scale 0-240 -> 0-120 (approx)
-    s = 255
-    v = 255
-    hsv_pixel = np.uint8([[[h, s, v]]])
-    bgr_pixel = cv2.cvtColor(hsv_pixel, cv2.COLOR_HSV2BGR)[0][0]
-    # Return tuple of ints for cv2.fillPoly color
-    return (int(bgr_pixel[0]), int(bgr_pixel[1]), int(bgr_pixel[2]))
+
+    # Calculate hue:
+    # When norm is 0 (low val/high pressure), hue is 0 (Red).
+    # When norm is 1 (high val/low pressure), hue is 240 (Blue).
+    hue = norm * 240 # 0 = red, 240 = blue
+
+    # Convert to RGB using full saturation (1.0) and value (brightness) (1.0)
+    return hsv_to_rgb(hue, 1.0, 1.0)
+
+# def hsv_to_rgb(h, s, v):
+#     h = h % 360
+#     c = v * s
+#     x = c * (1 - abs((h / 60) % 2 - 1))
+#     m = v - c
+
+#     if h < 60:
+#         rp, gp, bp = c, x, 0
+#     elif h < 120:
+#         rp, gp, bp = x, c, 0
+#     elif h < 180:
+#         rp, gp, bp = 0, c, x
+#     elif h < 240:
+#         rp, gp, bp = 0, x, c
+#     elif h < 300:
+#         rp, gp, bp = x, 0, c
+#     else:
+#         rp, gp, bp = c, 0, x
+
+#     r, g, b = (rp + m) * 255, (gp + m) * 255, (bp + m) * 255 # Scale to 0-255
+#     return (int(b), int(g), int(r)) # Then convert to int
+
+# def value_to_color(val,vmin=0, vmax=3000):
+#     clamped = np.clip(val, vmin, vmax)
+#     norm = (clamped - vmin) / (vmax - vmin)
+#     hue = (1 - norm) * 240  # 240 = blue, 0 = red
+#     return hsv_to_rgb(hue, 1.0, 1.0)
+
+# def value_to_color(val, vmin=0, vmax=3000):
+#     clamped = np.clip(val, vmin, vmax)
+#     norm = (clamped - vmin) / (vmax - vmin)
+#     hue = (1 - norm) * 240  # 240 to 0 (blue to red)
+#     # Convert HSV to BGR for OpenCV:
+#     # OpenCV expects hue in [0,179], saturation and value in [0,255]
+#     h = int(hue / 2)  # scale 0-240 -> 0-120 (approx)
+#     s = 255
+#     v = 255
+#     hsv_pixel = np.uint8([[[h, s, v]]])
+#     bgr_pixel = cv2.cvtColor(hsv_pixel, cv2.COLOR_HSV2BGR)[0][0]
+#     # Return tuple of ints for cv2.fillPoly color
+#     return (int(bgr_pixel[0]), int(bgr_pixel[1]), int(bgr_pixel[2]))
 
 def get_closest_frame(target_ts, ts_array, pressure_array):
     idx = np.argmin(np.abs(ts_array - target_ts))
