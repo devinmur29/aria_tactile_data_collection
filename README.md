@@ -127,6 +127,12 @@ You will need the following hardware:
 
 ## Test Your Recording Setup
 
+Watch the overview video below, and read on for more specific instructions.
+
+[![Watch the video](https://vumbnail.com/1109736531.jpg)](https://vimeo.com/1109736531)
+
+
+
 ### 1. Start the Video Recording
 
 Put on your headset and follow the instructions for your specific hardware (Quest or Aria). **Make a note of the recording name** you specify during this step.
